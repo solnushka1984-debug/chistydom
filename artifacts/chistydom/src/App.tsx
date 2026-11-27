@@ -1,5 +1,5 @@
-import { useMemo, useState, type CSSProperties, type FormEvent } from 'react';
-import { ArrowDown, ArrowRight, Check, CheckCircle2, Leaf, ShieldCheck, Sparkles, Camera, Shirt } from 'lucide-react';
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
+import { ArrowDown, ArrowRight, Check, CheckCircle2, Leaf, ShieldCheck, Sparkles, Camera, Shirt, ListChecks, Trash2, X } from 'lucide-react';
 
 // ДЕМО-КОНТАКТЫ — замените на контакты вашей компании.
 const PHONE = '8 (800) 000-00-00';
@@ -55,6 +55,30 @@ const benefits = [
 const rubles = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₽`;
 const STORAGE_KEY = 'chistydom-demo-requests';
 
+// Заявки лежат в localStorage — их могла записать и более ранняя версия кода,
+// поэтому перед выводом проверяем, что запись вообще похожа на заявку.
+const isRequestRecord = (value: unknown): value is RequestRecord => {
+  const record = value as Partial<RequestRecord> | null;
+  return !!record && typeof record.id === 'string' && typeof record.name === 'string'
+    && typeof record.phone === 'string' && typeof record.address === 'string'
+    && typeof record.area === 'number' && Array.isArray(record.extras)
+    && typeof record.quote === 'number' && typeof record.submittedAt === 'string';
+};
+const readStoredRequests = (): RequestRecord[] => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(isRequestRecord) : [];
+  } catch {
+    return [];
+  }
+};
+const cleaningTypeName = (id: CleaningType) => cleaningOptions.find((o) => o.id === id)?.name ?? id;
+const extraName = (key: ExtraKey) => extrasOptions.find((o) => o.id === key)?.name ?? key;
+const formatSubmittedAt = (iso: string) => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+};
+
 function normalizeRussianPhone(value: string) {
   const digits = value.replace(/\D/g, '');
   if (!digits) return '';
@@ -87,11 +111,35 @@ function App() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [requests, setRequests] = useState<RequestRecord[]>([]);
+  const [showRequests, setShowRequests] = useState(false);
+
+  useEffect(() => {
+    setRequests(readStoredRequests());
+  }, []);
+
+  // Открытый список: закрываем по Escape и не даём фону скроллиться.
+  useEffect(() => {
+    if (!showRequests) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowRequests(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    document.body.classList.add('no-scroll');
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.classList.remove('no-scroll');
+    };
+  }, [showRequests]);
 
   const quote = useMemo(() => Math.max(area * RATES[cleaningType], MINIMUM_PRICE) + extras.reduce((sum, key) => sum + EXTRAS[key], 0), [area, cleaningType, extras]);
   const toggleExtra = (key: ExtraKey) => {
     setSaved(false);
     setExtras((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  };
+  const clearRequests = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setRequests([]);
   };
   const submitRequest = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -117,7 +165,9 @@ function App() {
         quote,
         submittedAt: new Date().toISOString(),
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...existing, request]));
+      const next = [...existing, request];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setRequests(next);
       setSaved(true);
       setForm({ name: '', phone: '', address: '' });
     } catch {
@@ -212,7 +262,7 @@ function App() {
           <label htmlFor="customer-phone">Телефон</label><input data-testid="input-phone" id="customer-phone" type="tel" autoComplete="tel" inputMode="tel" placeholder="+7 (___) ___-__-__" required minLength={6} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} onBlur={(e) => setForm((current) => ({ ...current, phone: normalizeRussianPhone(e.target.value) }))} aria-describedby={saveError ? 'phone-error' : undefined} />
           <label htmlFor="customer-address">Адрес уборки</label><input data-testid="input-address" id="customer-address" type="text" autoComplete="street-address" placeholder="Улица, дом, квартира" required minLength={4} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           {saveError && <div id="phone-error" className="form-error" role="alert">{saveError}</div>}
-          {saved && <div data-testid="status-saved" className="form-success" role="status"><CheckCircle2 size={19} /><span><b>Спасибо!</b><small>Заявка сохранена в этом браузере. Она не отправлена в компанию.</small></span></div>}
+          {saved && <div data-testid="status-saved" className="form-success" role="status"><CheckCircle2 size={19} /><span><b>Спасибо!</b><small>Заявка сохранена в этом браузере и добавлена в список заявок. В компанию она не отправлена.</small></span></div>}
           <button data-testid="button-submit" className="button submit-button" type="submit" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить заявку'} <ArrowRight size={17} /></button>
           <small className="privacy-note">Демо-форма: заявка сохраняется только на этом устройстве и не отправляется компании.</small>
         </form>
@@ -220,8 +270,46 @@ function App() {
 
       <footer className="site-footer">
         <div className="footer-main"><a className="brand footer-brand" href="#home"><span className="brand-mark"><Sparkles size={22} /></span><span>чистый<span className="brand-green">дом</span><small>УБОРКА С ЗАБОТОЙ</small></span></a><p>Чистота, в которой<br />хорошо жить.</p><div className="footer-contact"><span>ВСЕГДА НА СВЯЗИ</span><a href={`tel:${PHONE.replace(/[^\d+]/g, '')}`}>{PHONE}</a><a href={`mailto:${EMAIL}`}>{EMAIL}</a></div><div className="footer-social"><span>МЫ В СЕТИ</span><div><a href={TELEGRAM_URL} target="_blank" rel="noreferrer">Telegram</a><a href={VK_URL} target="_blank" rel="noreferrer">ВКонтакте</a></div></div></div>
-        <div className="footer-bottom"><span>© 2026 ЧистыйДом. Демо-сайт.</span><span>Заявки сохраняются только в вашем браузере.</span><a href="#home">Наверх ↑</a></div>
+        <div className="footer-bottom"><span>© 2026 ЧистыйДом. Демо-сайт.</span><span>Заявки сохраняются только в вашем браузере.</span><button type="button" className="footer-requests" data-testid="button-open-requests" onClick={() => setShowRequests(true)}><ListChecks size={12} /> Сохранённые заявки{requests.length > 0 ? ` (${requests.length})` : ''}</button><a href="#home">Наверх ↑</a></div>
       </footer>
+
+      {showRequests && (
+        <div className="requests-overlay" onClick={(event) => { if (event.currentTarget === event.target) setShowRequests(false); }}>
+          <div className="requests-modal" role="dialog" aria-modal="true" aria-labelledby="requests-title" data-testid="requests-modal">
+            <div className="requests-head">
+              <div><span className="eyebrow">ЛОКАЛЬНОЕ ХРАНИЛИЩЕ ЭТОГО БРАУЗЕРА</span><h3 id="requests-title">Сохранённые заявки <small>{requests.length}</small></h3></div>
+              <button type="button" className="requests-close" data-testid="button-close-requests" onClick={() => setShowRequests(false)} aria-label="Закрыть список заявок"><X size={16} /></button>
+            </div>
+            {requests.length === 0 ? (
+              <p className="requests-empty">Пока ни одной заявки. Заполните форму выше — она появится здесь. Ничего не уходит на почту и в CRM: демо-режим.</p>
+            ) : (
+              <>
+                <ul className="requests-list">
+                  {[...requests].reverse().map((item) => (
+                    <li className="request-row" key={item.id}>
+                      <div className="request-main">
+                        <b>{item.name}</b>
+                        <a href={`tel:${item.phone.replace(/[^\d+]/g, '')}`}>{item.phone}</a>
+                        <span>{item.address}</span>
+                      </div>
+                      <div className="request-price">{rubles(item.quote)}</div>
+                      <div className="request-meta">
+                        <span>{cleaningTypeName(item.cleaningType)} · {item.area} м²</span>
+                        {(item.extras?.length ?? 0) > 0 && <span>{item.extras.map(extraName).join(', ')}</span>}
+                        <span>{formatSubmittedAt(item.submittedAt)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="requests-actions">
+                  <button type="button" className="requests-clear" data-testid="button-clear-requests" onClick={clearRequests}><Trash2 size={13} /> Удалить все заявки</button>
+                  <button type="button" className="button button-small" onClick={() => setShowRequests(false)}>Закрыть</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

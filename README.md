@@ -34,6 +34,19 @@ scripts/            # служебные скрипты
 
 Сайт сейчас **не обращается** к `api-server` и к базе: схема БД (`lib/db/src/schema/index.ts`) пуста, а форма пишет в `localStorage`. Бэкенд — заготовка на будущее.
 
+## Публичная ссылка
+
+Сайт опубликован на GitHub Pages: **https://solnushka1984-debug.github.io/chistydom/**
+
+Деплой делает GitHub Actions (`.github/workflows/deploy.yml`) — бесплатно, без внешних сервисов. Он стартует автоматически при каждом пуше в `main`, либо вручную: вкладка Actions → «build-and-deploy» → «Run workflow».
+
+Важные детали:
+
+- Pages собран из статистики, сервер не нужен: заявка никуда не уходит, список живёт в браузере.
+- `BASE_PATH` в workflow обязан совпадать с путём Pages (`/chistydom/`). Переименуешь репозиторий — правь и `BASE_PATH`, и абсолютные ссылки `og:image` в `artifacts/chistydom/index.html:14,21`.
+- Картинка-превью для ссылок — `artifacts/chistydom/public/og.png`. Перегенерировать: `powershell -File scripts/make-og-image.ps1` (тексты — в `scripts/og-image-text.json`).
+- Проверить, что превью обновилось в мессенджере, можно через переиндексацию: Telegram — `@WebAppBot`/`/refresh`, либо просто послать ссылку в сохранённые сообщения заново после смены `og:image`.
+
 ## Запуск
 
 Требуется Node.js 24+ и pnpm.

@@ -1,0 +1,78 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Правки в одну ветку не должны перекрывать друг друга при деплое.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # Проверка типов отдельным джобом: она ничего не блокирует, но сразу
+  # видно, если код сайта перестал типизироваться.
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Установка зависимостей
+        run: pnpm install --frozen-lockfile
+
+      - name: Сборка сайта
+        run: pnpm --filter @workspace/chistydom run build
+        env:
+          # vite.config.ts требует обе переменные — и для dev, и для build.
+          # BASE_PATH должен совпадать с путём GitHub Pages.
+          PORT: "3000"
+          BASE_PATH: /chistydom/
+
+      - name: Отдача SPA по любому пути
+        run: cp artifacts/chistydom/dist/public/index.html artifacts/chistydom/dist/public/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifacts/chistydom/dist/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Публикация на GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
