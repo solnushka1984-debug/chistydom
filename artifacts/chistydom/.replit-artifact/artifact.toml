@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ЧистыйДом — калькулятор уборки"
+description = "Одностраничный сайт клининговой компании «ЧистыйДом» с интерактивным расчетом стоимости, формой заявки и сохранением заявок в браузере."
+version = "1.0.0"
+id = "artifacts/chistydom"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20507
+
+[services.development]
+run = "pnpm --filter @workspace/chistydom run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/chistydom", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/chistydom/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20507"
+BASE_PATH = "/"

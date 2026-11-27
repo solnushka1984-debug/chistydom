@@ -1,0 +1,41 @@
+# --- Зависимости ---
+node_modules/
+.pnpm-store/
+
+# --- Сборка ---
+dist/
+build/
+*.tsbuildinfo
+.tsbuildinfo
+
+# --- Средовые переменные (не коммитим секреты) ---
+.env
+.env.*
+!.env.example
+
+# --- Логи ---
+*.log
+logs/
+pnpm-debug.log*
+npm-debug.log*
+yarn-error.log*
+
+# --- Кэш / временные файлы ---
+.cache/
+.vite/
+coverage/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Редакторы ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+# --- Replit-специфичное (локальный стейт окружения) ---
+.replit
+split
+attached_assets/
